@@ -31,7 +31,8 @@
                 <version>3.2.4</version>
                 <configuration>
                     <transformers>
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                        <transformer
+                                implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                             <mainClass>com.kantar.sessionsjob.Main</mainClass>
                         </transformer>
                     </transformers>
@@ -42,6 +43,18 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
+                        <configuration>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -49,16 +62,11 @@
     </build>
 
     <dependencies>
-        
+
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <version>2.14.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <version>2.14.1</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.30</version>
         </dependency>
 
         <dependency>
@@ -72,6 +80,13 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-sql_2.12</artifactId>
             <version>3.1.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.20</version>
+            <scope>provided</scope>
         </dependency>
 
     </dependencies>

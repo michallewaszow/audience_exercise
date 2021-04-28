@@ -1,18 +1,31 @@
 package com.kantar.sessionsjob;
 
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SQLContext;
+import org.junit.platform.commons.util.Preconditions;
+
+import com.kantar.sessionsjob.config.SparkContextConfiguration;
+import com.kantar.sessionsjob.io.PSVReader;
+import com.kantar.sessionsjob.io.PSVWriter;
+
+import java.io.File;
+
 public class Main {
 
-    // See README.txt for usage example
-
     public static void main(String[] args) {
+        final String output = System.getProperty("output");
+        final String input = System.getProperty("input");
+        final String sparkAddress = System.getProperty("sparkAddress", "local[*]");
 
-        if (args.length < 2) {
-            System.err.println("Missing arguments: <input-statements-file> <output-sessions-file>");
-            System.exit(1);
-        }
+        Preconditions.notBlank(input, "-Dinput java argument cannot be empty");
+        Preconditions.notBlank(output, "-Doutput java argument cannot be empty");
 
-        // TODO: write application ...
+        final SQLContext sqlContext = SparkContextConfiguration.getSQLContext("sessionsJob", sparkAddress);
+        final SessionsProcessor processor = new SessionsProcessor();
 
+        final Dataset<Row> inputData = PSVReader.toDataset(sqlContext, new File(input));
+        final Dataset<Row> outputData = processor.process(inputData);
+        PSVWriter.fromDataset(outputData, output);
     }
-
 }

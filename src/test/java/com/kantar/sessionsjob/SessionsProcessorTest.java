@@ -1,38 +1,61 @@
 package com.kantar.sessionsjob;
 
-import com.kantar.sessionsjob.config.SparkContextConfiguration;
-import org.apache.spark.sql.*;
-import org.apache.spark.sql.expressions.Window;
-import org.apache.spark.sql.expressions.WindowSpec;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.LongType;
-import org.apache.spark.sql.types.LongType$;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SQLContext;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import static org.apache.spark.sql.functions.*;
-import static org.apache.spark.sql.functions.date_add;
+import com.kantar.sessionsjob.config.SparkContextConfiguration;
+import com.kantar.sessionsjob.io.PSVReader;
+import com.kantar.sessionsjob.io.PSVWriter;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 
 public class SessionsProcessorTest {
 
+    private static SQLContext SQL_CONTEXT;
 
-    @Test
-    public void shouldGroupSessionsByDeviceId() {
-        //given
-        WindowSpec window = Window.partitionBy("HomeNo").orderBy(asc("Starttime"));
-
-        Column nextRowIsNull = lead(col("Starttime"), 1).over(window).isNull();
-        Column lastSecondOfDay = to_timestamp(from_unixtime(lit(to_timestamp(date_add(col("Starttime"), 1)).cast("long").minus(1))));
-        Column endtime = to_timestamp(from_unixtime(lead(col("Starttime"), 1).over(window).cast("long").minus(1)));
-        Column endtimeStarttimeDiffInSeconds = col("Endtime").cast("long").minus(col("Starttime").cast("long"));
-
-        final SQLContext sqlContext = SparkContextConfiguration.getSQLContext("SessionsProcessor", "local[2]");
-        Dataset<Row> df = sqlContext.read().option("sep", "|").option("header", "true").csv("src/test/resources/input-statements.psv");
-        Dataset<Row> newDF = df.withColumn("Starttime", to_timestamp(col("Starttime"), "yyyyMMddHHmmss"));
-        Dataset<Row> endtimes = newDF.withColumn("Endtime", when(nextRowIsNull, lastSecondOfDay).otherwise(endtime))
-                                    .withColumn("Duration", endtimeStarttimeDiffInSeconds);
-        endtimes.printSchema();
-        endtimes.show();
+    @BeforeAll
+    static void setup() {
+        SQL_CONTEXT = SparkContextConfiguration.getSQLContext("test", "local[*]");
     }
 
+    @Test
+    public void shouldContainOriginalAndAppendedColumnsAfterProcessing() throws IOException {
+        // given
+        final SessionsProcessor processor = new SessionsProcessor();
+        final File given = new File("src/test/resources/input-statements.psv");
+        final Dataset<Row> df = PSVReader.toDataset(SQL_CONTEXT, given);
+        final String[] expectedColumns = new String[] { "HomeNo",
+                                                        "Channel",
+                                                        "Starttime",
+                                                        "Activity",
+                                                        "EndTime",
+                                                        "Duration" };
+        // when
+        final Dataset<Row> result = processor.process(df);
+        // then
+        Assertions.assertArrayEquals(result.columns(), expectedColumns, "Column should be equal");
+    }
+
+    @Test
+    public void processedFileShouldHaveExpectedSize() throws IOException {
+        // given
+        final SessionsProcessor processor = new SessionsProcessor();
+        final File given = new File("src/test/resources/input-statements.psv");
+        final File expected = new File("src/test/resources/expected-sessions.psv");
+        final Dataset<Row> df = PSVReader.toDataset(SQL_CONTEXT, given);
+
+        // when
+        final Dataset<Row> result = processor.process(df);
+        final File actual = PSVWriter.fromDataset(result, "result");
+        // then
+        Assertions.assertEquals(expected.length(), actual.length());
+        Files.delete(actual.toPath());
+    }
 
 }
